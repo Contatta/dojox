@@ -55,6 +55,11 @@ define([
 
 		startup: function(){
 			if(this._started){ return; }
+			// user can initialize the app footers using a value for fixedFooter (we keep this value for non regression of existing apps)
+			if(this.fixedFooter && !this.isLocalFooter){
+				this._fixedAppFooter = this.fixedFooter;
+				this.fixedFooter = "";
+			}
 			this.reparent();
 			this.inherited(arguments);
 		},
@@ -66,6 +71,11 @@ define([
 			array.forEach(this.getChildren(), function(child){
 				if(child.resize){ child.resize(); }
 			});
+			this._dim = this.getDim(); // update dimension cache
+			if(this._conn){
+				// if a resize happens during a scroll, update the scrollbar
+				this.resetScrollBar();
+			}
 		},
 
 		isTopLevel: function(/*Event*/e){
@@ -142,6 +152,19 @@ define([
 				}
 			}
 			return children;
+		},
+
+		_addTransitionPaddingTop: function(/*String|Integer*/ value){
+			// add padding top to the view in order to get alignment during the transition
+			this.domNode.style.paddingTop = value + "px";
+			this.containerNode.style.paddingTop = value + "px";
+		},
+
+		_removeTransitionPaddingTop: function(){
+			// remove padding top from the view after the transition
+			this.domNode.style.paddingTop = "";
+			this.containerNode.style.paddingTop = "";
 		}
+
 	});
 });

@@ -4,7 +4,7 @@ define([
 	"dojo/_base/connect",
 	"dojo/_base/declare",
 	"dojo/_base/lang",
-	"dojo/_base/sniff",
+	"dojo/sniff",
 	"dojo/_base/window",
 	"dojo/_base/Deferred",
 	"dojo/dom",
@@ -46,7 +46,7 @@ define([
 		keepScrollPos: true,
 
 		// tag: String
-		//		A name of the HTML tag to create as domNode.
+		//		The name of the HTML tag to create as domNode. The default value is "div".
 		tag: "div",
 
 		/* internal properties */
@@ -70,7 +70,10 @@ define([
 		},
 
 		buildRendering: function(){
-			this.domNode = this.containerNode = this.srcNodeRef || domConstruct.create(this.tag);
+			if(!this.templateString){
+				// Create root node if it wasn't created by _TemplatedMixin
+				this.domNode = this.containerNode = this.srcNodeRef || domConstruct.create(this.tag);
+			}
 
 			this._animEndHandle = this.connect(this.domNode, css3.name("animationEnd"), "onAnimationEnd");
 			this._animStartHandle = this.connect(this.domNode, css3.name("animationStart"), "onAnimationStart");
@@ -347,7 +350,7 @@ define([
 
 				if(detail.transition && detail.transition != "none"){
 					// Temporarily add padding to align with the fromNode while transition
-					toWidget.containerNode.style.paddingTop = fromTop + "px";
+					toWidget._addTransitionPaddingTop(fromTop);
 				}
 
 				toWidget.load && toWidget.load(); // for ContentView
@@ -377,9 +380,9 @@ define([
 					if(scrollTop > 1 || toTop !== 0){
 						fromNode.style.top = toTop - scrollTop + "px";
 						if(config["mblHideAddressBar"] !== false){
-							setTimeout(function(){ // iPhone needs setTimeout
+							this.defer(function(){ // iPhone needs setTimeout (via defer)
 								win.global.scrollTo(0, (toTop || 1));
-							}, 0);
+							});
 						}
 					}
 				}else{
@@ -395,6 +398,16 @@ define([
 			common.toView = toWidget;
 
 			this._doTransition(fromNode, toNode, detail.transition, detail.transitionDir);
+		},
+
+		_addTransitionPaddingTop: function(/*String|Integer*/ value){
+			// add padding top to the view in order to get alignment during the transition
+			this.containerNode.style.paddingTop = value + "px";
+		},
+
+		_removeTransitionPaddingTop: function(){
+			// remove padding top from the view after the transition
+			this.containerNode.style.paddingTop = "";
 		},
 
 		_toCls: function(s){
@@ -427,7 +440,7 @@ define([
 				if(transition.indexOf("cube") != -1){
 					if(has('ipad')){
 						domStyle.set(toNode.parentNode, {webkitPerspective:1600});
-					}else if(has('iphone')){
+					}else if(has("ios")){
 						domStyle.set(toNode.parentNode, {webkitPerspective:800});
 					}
 				}
@@ -435,12 +448,13 @@ define([
 				if(has('mblAndroidWorkaround')){
 					// workaround for the screen flicker issue on Android 2.2
 					// applying transition css classes just after setting toNode.style.display = ""
-					// causes flicker, so wait for a while using setTimeout
-					setTimeout(function(){
+					// causes flicker, so wait for a while using setTimeout (via defer)
+					var _this = this;
+					_this.defer(function(){
 						domClass.add(fromNode, s + " mblOut" + rev);
 						domClass.add(toNode, s + " mblIn" + rev);
 						domClass.remove(toNode, "mblAndroidWorkaround"); // remove offscreen style
-						setTimeout(function(){
+						_this.defer(function(){
 							domClass.add(fromNode, "mblTransition");
 							domClass.add(toNode, "mblTransition");
 						}, 30); // 30 = 100 - 70, to make total delay equal to 100ms
@@ -448,7 +462,7 @@ define([
 				}else{
 					domClass.add(fromNode, s + " mblOut" + rev);
 					domClass.add(toNode, s + " mblIn" + rev);
-					setTimeout(function(){
+					this.defer(function(){
 						domClass.add(fromNode, "mblTransition");
 						domClass.add(toNode, "mblTransition");
 					}, 100);
@@ -502,7 +516,7 @@ define([
 				domClass.remove(this.domNode, [this._toCls(this._detail.transition), "mblIn", "mblOut", "mblReverse"]);
 			}else{
 				// Reset the temporary padding
-				this.containerNode.style.paddingTop = "";
+				this._removeTransitionPaddingTop();
 			}
 			domStyle.set(this.domNode, css3.add({}, {transformOrigin:""}));
 			if(name.indexOf("Shrink") !== -1){
@@ -524,7 +538,7 @@ define([
 			this.clickedPosX = this.clickedPosY = undefined;
 
 			if(name.indexOf("Cube") !== -1 &&
-				name.indexOf("In") !== -1 && has('iphone')){
+				name.indexOf("In") !== -1 && has("ios")){
 				this.domNode.parentNode.style[css3.name("perspective")] = "";
 			}
 		},
@@ -548,11 +562,11 @@ define([
 				// workaround for the screen flicker issue on Android 2.2/2.3
 				// remove "-webkit-transform-style" style after transition finished
 				// to avoid side effects such as input field auto-scrolling issue
-				// use setTimeout to avoid flicker in case of ScrollableView
-				setTimeout(lang.hitch(this, function(){
+				// use setTimeout (via defer) to avoid flicker in case of ScrollableView
+				this.defer(function(){
 					if(toWidget){ domStyle.set(this.toNode, css3.name("transformStyle"), ""); }
 					domStyle.set(this.domNode, css3.name("transformStyle"), "");
-				}), 0);
+				});
 			}
 
 			var c = this._detail.context, m = this._detail.method;
